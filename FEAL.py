@@ -8,7 +8,7 @@ from sklearn.gaussian_process.kernels import (RBF,
                                               Matern, 
                                               DotProduct, 
                                               RationalQuadratic)
-# pip install modAL-python
+
 from modAL.models.learners import ActiveLearner
 import pandas as pd
 from sklearn.metrics import r2_score
@@ -18,7 +18,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, max_error
 import joblib
 # Our class
 from sklearn.utils import shuffle
-from DimensionReduction.DR import DRAL
+
 
 # For active learning, we shall define a custom query strategy 
 # tailored to Gaussian processes (gp).
@@ -41,21 +41,18 @@ def split (X,samples,val):
 # =====================================
 # Import data and shuffle it 
 df = shuffle(pd.read_csv('data_all.csv'))
+
 # define X and y
-Xori = df.drop(['letters', 'disassoc', 'assoc'],axis=1)
-y = df['assoc']
-Xori = np.array(Xori)
-# DR
-obj = DRAL('data.csv')
-#Xpca, Xpca_rd = obj.PCA(0.95)
-y = np.array(y)
+Xori = np.array(df.drop(['letters', 'disassoc', 'assoc'], axis=1))
+y = np.array(df['assoc'])
 # reshape y from vevtor to matrix
 y = y.reshape(-1,1)
 
-n_samples = 150
-n_val = 50
+n_samples = 40
+n_val = int(len(y)) - n_samples
 X_train, X_val, X_test = split(Xori, n_samples, n_val)
 y_train, y_val, y_test = split(y, n_samples, n_val)
+
 # Number of samples for active learning 5,10,...
 n_queries = np.linspace(5,n_samples,int(n_samples/5),dtype=int)
 
@@ -73,20 +70,16 @@ y_train_scale = scaler_y.transform(y_train)
 scaler_y.fit(y_val)
 y_val_scale = scaler_y.transform(y_val)
 
-# Initializing the active learner using the first 5 data points (X[0:5],y[0:5])
-initial_idx = np.linspace(0,4,5,dtype=int)
-X_training, y_training = X_train_scale[initial_idx], y_train_scale[initial_idx]
 # Defining Active learner
 # Defining kernel for Gaussian Process Regressor 
 kernel = DotProduct()
-# Defining the active learnr in modAL package  
+# Defining the active learnr using modAL package  
 regressor = ActiveLearner(estimator=GaussianProcessRegressor(kernel=kernel, 
                                                              random_state=0,
                                                              n_restarts_optimizer=0,
                                                              alpha=1),
-                             query_strategy=GP_regression_std,
-                             X_training=X_training, 
-                             y_training=y_training)
+                             query_strategy=GP_regression_std                              
+                         )
 
 # Function to iterate through the number of queries
 def AL (n_queries):
