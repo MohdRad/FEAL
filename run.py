@@ -1,21 +1,95 @@
-# -*- coding: utf-8 -*-
 """
 Created on Wed May  1 18:41:57 2024
-
 @author: mirad
 """
 
-from FEAL import FE_AL, plotting
+from FEAL import FE_AL, rand, plotting
+import numpy as np
 
+# Original case
 metrics = FE_AL(df = 'data_all.csv', 
                        n_samples = 30, 
-                       spacing =2, 
-                       q_str = "max")
+                       spacing =2,
+                       pca='False',
+                       shuf='False') 
 
-metrics_rd = FE_AL(df = 'data_all.csv', 
+metrics_rd = rand(df = 'data_all.csv', 
                        n_samples = 30, 
-                       spacing =2, 
-                       q_str = "random")
-
-
+                       spacing =2,
+                       pca='False',
+                       shuf='False') 
+                       
 plotting(metrics,metrics_rd,'original.png')
+
+#=======================================================
+# Drop A,B,C from the training data
+metrics = FE_AL(df = './cases/noABC.csv', 
+                       n_samples = 30, 
+                       spacing =2,
+                       pca='False',
+                       shuf='False') 
+                       
+metrics_rd = rand(df = './cases/noABC.csv', 
+                       n_samples = 30, 
+                       spacing =2,
+                       pca='False',
+                       shuf='False')
+
+plotting(metrics,metrics_rd,'./figs/noABC.png')
+
+#========================================================
+# Apply PCA to reduce the number of features 
+metrics = FE_AL(df = 'data_all.csv', 
+                       n_samples = 30, 
+                       spacing =2,
+                       pca='True',
+                       shuf='False') 
+                       
+metrics_rd = rand(df = 'data_all.csv', 
+                       n_samples = 30, 
+                       spacing =2,
+                       pca='True',
+                       shuf='False')
+
+plotting(metrics,metrics_rd,'./figs/pca.png')
+#========================================================
+# Effect of adding more features from the original space  
+metrics = FE_AL(df = './cases/features.csv', 
+                       n_samples = 30, 
+                       spacing =2,
+                       pca='False',
+                       shuf='False') 
+                       
+metrics_rd = rand(df = './cases/features.csv', 
+                       n_samples = 30, 
+                       spacing =2,
+                       pca='False',
+                       shuf='False')
+
+plotting(metrics,metrics_rd,'./figs/feat.png')
+#========================================================
+# Testing model stability by running 100 case
+# The data is shuffled at the beggining of each run 
+lst = []
+lst_rand = []
+#n_samples = [30,40,50,60,70,80,90,100]
+#for n_samples in n_samples:
+for i in range (100):
+    metrics = FE_AL(df = 'data_all.csv', 
+                       n_samples = 90, 
+                       spacing =3,
+                       pca='False',
+                       shuf='True') 
+
+    metrics_rd = rand(df = 'data_all.csv', 
+                       n_samples = 90, 
+                       spacing =3,
+                       pca='False',
+                       shuf='True') 
+    lst.append([i,metrics[-1,1],metrics[-1,2]])
+    lst_rand.append([i,metrics_rd[-1,1],metrics_rd[-1,2]])
+a = np.array(lst)
+a_rand = np.array(lst_rand)   
+print(np.mean(a[:,1]), np.mean(a[:,2]), 
+      np.mean(a_rand[:,1]), np.mean(a_rand[:,2]))
+
