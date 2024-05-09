@@ -6,7 +6,7 @@ from sklearn.gaussian_process.kernels import (RBF,
                                               DotProduct, 
                                               RationalQuadratic)
 
-from modAL.models.learners import ActiveLearner
+from modAL.models.learners import ActiveLearner, CommitteeRegressor
 import pandas as pd
 from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
@@ -17,6 +17,7 @@ import joblib
 import random
 from DimensionReduction.DR import DRAL
 from sklearn.utils import shuffle
+from modAL.disagreement import max_std_sampling
 
 # For active learning, we shall define a custom query strategy 
 # tailored to Gaussian processes (gp).
@@ -69,7 +70,7 @@ def FE_AL (df, n_samples, spacing, pca, shuf):
     df :        (str) The name and directory of the data frame (.csv)
     n_samples : (int) Number of samples used in the active learning
     spacing :   (int) The increment in the number of samples make 
-                      Make sure n_samples/spacing is an integer
+                      
     pca:        (str) choices are 'True' OR 'False', apply PCA 
     shuf:       (str) choices are 'True' OR 'False', apply data shuffle 
 
@@ -86,7 +87,7 @@ def FE_AL (df, n_samples, spacing, pca, shuf):
     # define X and y
     global Xori
     # X: Use PCA
-    if (pca == 'yes'):
+    if (pca == 'True'):
         obj = DRAL('./cases/PCA.csv')
         Xpca,Xori = obj.PCA(var=0.95)    
     else:
@@ -211,5 +212,91 @@ def rand (df,n_samples,spacing,pca,shuf):
         metrics.append([n_samples,rmse,r2])
     return np.array(metrics)     
     
+
+# GPR ensemble for active learning 
+def ENAL (df, n_samples, spacing, pca, shuf, n_reg):
+    # Read data csv    
+    df = pd.read_csv(df)
+    if (shuf=='True'):
+        df = shuffle(df)
+    # define X and y
+    global Xori
+    # X: Use PCA
+    if (pca == 'True'):
+        obj = DRAL('./cases/PCA.csv')
+        Xpca,Xori = obj.PCA(var=0.95)    
+    else:
+        Xori = np.array(df.drop(['letters', 'disassoc', 'assoc'], axis=1))
+    # y
+    y = np.array(df['assoc'])
+    # reshape y from vevtor to matrix
+    y = y.reshape(-1,1)
+    # Number of samples for validation 
+    n_val = int(len(y)) - n_samples
+    X_train, X_val, X_test = split(Xori, n_samples, n_val)
+    y_train, y_val, y_test = split(y, n_samples, n_val)
+    # Number of samples for active learning 
+    # Spacing 
+    n_queries = np.linspace(spacing,n_samples,int(n_samples/spacing),dtype=int)
+    # Scaling 
+    # X
+    scaler_x = MinMaxScaler()
+    scaler_x.fit(X_train)
+    X_train_scale = scaler_x.transform(X_train)
+    scaler_x.fit(X_val)
+    X_val_scale = scaler_x.transform(X_val)
+    # y
+    scaler_y = MinMaxScaler()
+    scaler_y.fit(y_train)
+    y_train_scale = scaler_y.transform(y_train)
+    scaler_y.fit(y_val)
+    y_val_scale = scaler_y.transform(y_val)
+    # Defining Active learner
+    # Defining kernel for Gaussian Process Regressor 
+    kernel = DotProduct()
+    # Defining the active learner using modAL package 
+    gpr = GaussianProcessRegressor(kernel=kernel,
+                         random_state=0,
+                         n_restarts_optimizer=0,
+                         alpha=3)
+    # Use GPR as an Active Learner, Max Std as a query strategy
+    # initializing the regressors
+    learner_list = [ActiveLearner(estimator=gpr)
+                    for n_reg in range (n_reg)]
+
+    # initializing the Committee
+    committee = CommitteeRegressor(
+                                   learner_list=learner_list,
+                                   query_strategy=max_std_sampling
+                                   )
+    
+    # Empty lists to store the results
+    metrics = []
+    for k in range (0,len(n_queries)):
+        n_query = n_queries[k]
+        global query_indx, query_inst, y_pred_inv
+        query_indx = []
+        query_inst = []
+        for idx in range(n_query):
+            query_idx, query_instance = committee.query(X_train_scale)
+            query_indx.append(query_idx)
+            query_inst.append(query_instance)
+            committee.teach(X_train_scale[query_idx].reshape(1,-1), 
+                        y_train_scale[query_idx].reshape(1,-1))
+        # Trained model Prediction on unseen data
+        global y_true, y_pred_kj
+        y_pred = committee.predict(X_val_scale)
+        y_pred = y_pred.reshape(-1,1)
+        y_pred_kj = scaler_y.inverse_transform(y_pred)
+        # True data to calculate RMSE and R2
+        y_true = y_val
+        # Metrics
+        rmse = np.sqrt(mean_squared_error(y_true, y_pred_kj))
+        r2 = r2_score(y_true, y_pred_kj)
+        metrics.append([n_query,rmse,r2])
+        # save the model 
+        joblib.dump(committee, "committee.pkl") 
+    return np.array(metrics)
+
 
 
