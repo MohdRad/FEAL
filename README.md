@@ -53,3 +53,26 @@ This function uses precomputed csv files to indicate the training data. ==How ar
 ### General comments
 
 - You have one test where you plot 100 repetitions of the active learner. This implementation seems inefficient because you're refitting the model from scratch every time you want to collect more samples (30, ..., 100). It seems like you should cache the results along the way to 100 samples and plot the model's intermediate output as you add more features. This would probably cut your runtime from n^2 to n.
+
+## Examples
+
+## Multiple train/val/test splits
+
+Here's an example of how to create a random state object that you can reuse multiple times. This will allow the splits to be different within different iterations of the loop, but ensure that the splits are the same every time you run the code.
+
+```python
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+data = np.arange(1000).reshape(-1, 10)
+
+split_state = np.random.RandomState(42)
+
+for _ in range(10):
+    train_data, test_data = train_test_split(
+        data,
+        test_size=0.3,
+        random_state=split_state,
+    )
+    print(train_data[0])
+```
