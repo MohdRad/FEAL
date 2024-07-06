@@ -32,47 +32,4 @@ This function uses precomputed csv files to indicate the training data. ==How ar
 
 ==The code should not be commented out. It should be handled more elegantly. Possibly using commandline arguments via [argparse](https://docs.python.org/3/library/argparse.html).==
 
-## Matt notes
 
-### `FEAL.py`
-
-- You should set the shuffle seed so it's deterministic.
-- Why are there different datasets for the PCA and non-PCA cases?
-- You are fitting the MinMaxScalar to both the training and validation data. This will negatively impact the validation performance. You should fit the MinMaxScalar to the training data and transform the validation data without refitting.
-- Ideally you should not use global variables. You should pass the variables as arguments to the functions and return the modified versions. Think about either using a functional or an object-oriented approach.
-- Seems like `joblib.dump(regressor, "model.pkl")` will overwrite the model during each iteration of the for loop. You should probably use a different filename for each iteration and for each combination of dataset/PCA so that you can reference the old model instead of rerunning the whole process each time. You should also put checks in the for loop that load the model from that iteration if it exists.
-- Ideally you wold have the functions `FEAL` and `rand` implemented as one function and pass different sampling strategies to them to ensure that the process is the same for both and to reduce code duplication.
-- In `rand` your query strategy isn't random, it's to get the next sample in the dataset. This could be random, but you don't shuffle the dataset first. Why do you think this would be a random query strategy? How did you randomize the dataset rows?
-- You have some seemingly superfluous assignments. For example, `y_true = y_val` seems to do nothing but change the name of the variable. You should remove these to make the code more readable.
-- I think your Committee regressor doesn't work because you're using the same gaussian process model with the same random seed and same hyperparameters for each active learner in the committee. You should at least have a different initial state for each learner. Otherwise, the committee will give the same output as a single model.
-
-### `DR.py`
-
-- You do not provide a random state for PCA, SVD, or ICA.
-
-### General comments
-
-- You have one test where you plot 100 repetitions of the active learner. This implementation seems inefficient because you're refitting the model from scratch every time you want to collect more samples (30, ..., 100). It seems like you should cache the results along the way to 100 samples and plot the model's intermediate output as you add more features. This would probably cut your runtime from n^2 to n.
-
-## Examples
-
-## Multiple train/val/test splits
-
-Here's an example of how to create a random state object that you can reuse multiple times. This will allow the splits to be different within different iterations of the loop, but ensure that the splits are the same every time you run the code.
-
-```python
-import numpy as np
-from sklearn.model_selection import train_test_split
-
-data = np.arange(1000).reshape(-1, 10)
-
-split_state = np.random.RandomState(42)
-
-for _ in range(10):
-    train_data, test_data = train_test_split(
-        data,
-        test_size=0.3,
-        random_state=split_state,
-    )
-    print(train_data[0])
-```
