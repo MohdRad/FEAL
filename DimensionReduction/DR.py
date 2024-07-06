@@ -10,7 +10,7 @@ from sklearn.decomposition import FastICA
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import matplotlib.pyplot as plt
-
+from sklearn.utils import shuffle
 
 class DRAL():
     
@@ -60,7 +60,7 @@ class DRAL():
         ax1.set_ylabel('% Variance Retained')
         ax1.legend()
         #plt.savefig('PCA_var.png', dpi=500)
-        return X_DR, X_DR[:,:n_components]
+        return X_DR[:,:n_components]
             
     def SVD (self,var):
         # Original shape of X
@@ -87,7 +87,7 @@ class DRAL():
         ax1.set_ylabel('% Variance Retained')
         ax1.legend()
         #plt.savefig('SVD_var.png', dpi=500)    
-        return X_DR, X_DR[:,:n_components]
+        return X_DR[:,:n_components]
     
     def ICA (self,var):
         # Original shape of X
@@ -101,7 +101,6 @@ class DRAL():
         # Calculate the cumulative explained variance
         explained_variance = np.var(X_DR, axis=0)
         explained_variance_ratio = explained_variance / np.sum(explained_variance)
-        global cumulative_variance_ratio
         cumulative_variance_ratio = np.cumsum(explained_variance_ratio)
         # Determine the number of components to keep for variance explained
         n_components = np.argmax(cumulative_variance_ratio >= var) + 1
@@ -117,7 +116,7 @@ class DRAL():
         ax1.set_ylabel('% Variance Retained')
         ax1.legend()
         #plt.savefig('ICA_var.png', dpi=500) 
-        return X_DR, X_DR[:,:n_components]
+        return X_DR[:,:n_components]
         
         
 
