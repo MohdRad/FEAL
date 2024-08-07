@@ -20,7 +20,7 @@ pip install -r requirements.txt
 To run the code, use the following command:
 
 ```bash
-python feal.py
+python run.py
 ```
 
 This function uses precomputed csv files to indicate the training data. ==How are these files generated? Why do we need different files if the same dataset is used, just with different training and testing sets?== It compares active learning and random learning on several cases:
