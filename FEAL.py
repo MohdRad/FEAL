@@ -34,12 +34,13 @@ def GP_regression_std(regressor, X):
     query_idx = np.argmax(std)
     return query_idx, X[query_idx]
 
+#==============================================================================
 # Function for Random sample selection 
 def rand(domain):
     new_idx = np.random.choice(domain, size=1, replace=False)
     return new_idx
 
-
+#==============================================================================
 # Function to make curves smoother
 def smoother (x,y):
     spl = make_interp_spline(x,y,k=3)
@@ -48,50 +49,45 @@ def smoother (x,y):
     return x_new, y_smooth
 
   
-
+#==============================================================================
 # Function to plot the output of FE_AL function introduced down
-def plotting (arr, arr_r, name, unc, 
-              title,
-              xrange, 
-              xticks,
+def plotting (arr, arr_r, 
+              name, unc, 
               y1_range,
               y1_ticks,
               y2_range,
               y2_ticks,
-              zoom_coor,
-              rmse_range, 
-              rmse_ticks,  
-              r2_range, 
-              r2_ticks,
               legend_loc):
     '''
     Parameters
     ----------
-    arr:    (arr) metrics of AL at n_samples
-    arr_r:  (arr) metrics of random at n_samples
-    name:   (str) name of output plot file 
-    unc:    (bool) choices are True or False, to include uncertainty
-  
+    arr:        (arr) metrics of AL at n_samples
+    arr_r:      (arr) metrics of random at n_samples
+    name:       (str) name of output plot file 
+    unc:        (bool) choices are True or False, to include uncertainty
+    y1_range:   (list) [min,max] of RMSE  
+    y1_ticks:   (list/array) RMSE ticks elements, use numpy.arange 
+    y2_range:   (list) [min,max] of R2  
+    y2_ticks:   (list/array) R2 ticks elements, use numpy.arange 
     Returns
     -------
     saved plot in ./figs
 
     '''
-    plt.rcParams.update({'font.size': 14})
+    plt.rcParams.update({'font.size': 18})
     n_new, rmse_smooth = smoother(arr[:,0], arr[:,1])
     n_new, r2_smooth = smoother(arr[:,0], arr[:,2])
     n_new, rmse_r_smooth = smoother(arr_r[:,0], arr_r[:,1])
     n_new, r2_r_smooth = smoother(arr_r[:,0], arr_r[:,2])
     fig,ax1 = plt.subplots()
-    plt.title(title)
     ax1.set_xlabel('Number of queries')
-    ax1.set_ylabel('RMSE kJ/mol', color='tab:red')
+    ax1.set_ylabel('RMSE kJ/mol')
     ax1.set_xlim([0,max(arr[:,0])+1.0])
     ax1.set_ylim(y1_range)
     ax1.set_yticks(y1_ticks)
     ax1.plot(n_new, rmse_smooth, color='tab:red',label='AL')
     ax1.plot(n_new,rmse_r_smooth, '--', color='tab:red', label='Random')
-    plt.legend(loc='best', bbox_to_anchor=legend_loc)
+    plt.legend(loc='best')
     
     if (unc):
         n_new, rmse_unc_smooth = smoother(arr[:,0],arr[:,3])
@@ -100,16 +96,20 @@ def plotting (arr, arr_r, name, unc,
                          color='red', alpha=0.3)
         plt.fill_between(n_new, rmse_r_smooth-rmse_r_unc_smooth, rmse_r_smooth+rmse_r_unc_smooth,
                          color='grey', alpha=0.5)
-    ax1.tick_params(axis='y', labelcolor='tab:red')
-    plt.legend(loc='best', bbox_to_anchor=legend_loc) 
-
-   
-    ax2 = ax1.twinx()
-    plt.plot(n_new, r2_smooth, color='tab:blue',label='Max. Uncertainty')
-    plt.plot(n_new, r2_r_smooth, '--', color='tab:blue', label='Random')
+        plt.legend(loc='best') 
+    plt.savefig('./figs/'+name+'_rmse.png', dpi=500, bbox_inches='tight')
+    
+    fig,ax2 = plt.subplots()
+    ax2.set_xlabel('Number of queries')
+    ax2.set_ylabel('R$^2$')
+    ax2.set_xlim([0,max(arr[:,0])+1.0])
     ax2.set_ylim(y2_range)
     ax2.set_yticks(y2_ticks)
-    
+    ax2.plot(n_new, r2_smooth, color='tab:blue',label='AL')
+    ax2.plot(n_new, r2_r_smooth, '--', color='tab:blue', label='Random')
+    ax2.yaxis.label.set(rotation='horizontal', ha='right')
+    plt.legend(loc=legend_loc)
+
     if (unc):
         n_new, r2_unc_smooth = smoother(arr[:,0],arr[:,4])
         n_new, r2_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,4])
@@ -117,44 +117,9 @@ def plotting (arr, arr_r, name, unc,
                          color='blue', alpha=0.3)
         plt.fill_between(n_new, r2_r_smooth-r2_r_unc_smooth, r2_r_smooth+r2_r_unc_smooth,
                          color='grey', alpha=0.5)
-    ax2.set_ylabel('R$^2$', 
-                   color='tab:blue',
-                   )
-    ax2.tick_params(axis='y', labelcolor='tab:blue')
-    
-    a = plt.axes(zoom_coor)
-    plt.rcParams.update({'font.size': 10})
-    plt.plot(n_new, rmse_smooth, color='tab:red')
-    plt.plot(n_new,rmse_r_smooth, '--', color='tab:red')
-    plt.xlim(xrange)
-    plt.ylim(rmse_range)
-    plt.xticks(xticks, fontsize=10)
-    plt.yticks(rmse_ticks, fontsize=10, color='tab:red')
-    if (unc):
-        n_new, rmse_unc_smooth = smoother(arr[:,0],arr[:,3])
-        n_new, rmse_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,3])
-        plt.fill_between(n_new, rmse_smooth-rmse_unc_smooth, rmse_smooth+rmse_unc_smooth,
-                         color='red', alpha=0.3)
-        plt.fill_between(n_new, rmse_r_smooth-rmse_r_unc_smooth, rmse_r_smooth+rmse_r_unc_smooth,
-                         color='grey', alpha=0.5)
-    ax1.tick_params(axis='y', labelcolor='tab:red')
-    
-    a2 = a.twinx()
-    plt.plot(n_new, r2_smooth, color='tab:blue')
-    plt.plot(n_new, r2_r_smooth, '--', color='tab:blue')
-    plt.ylim(r2_range)
-    plt.yticks(r2_ticks, fontsize=10, color='tab:blue')
-    if (unc):
-        n_new, r2_unc_smooth = smoother(arr[:,0],arr[:,4])
-        n_new, r2_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,4])
-        plt.fill_between(n_new, r2_smooth-r2_unc_smooth, r2_smooth+r2_unc_smooth,
-                         color='blue', alpha=0.3)
-        plt.fill_between(n_new, r2_r_smooth-r2_r_unc_smooth, r2_r_smooth+r2_r_unc_smooth,
-                         color='grey', alpha=0.5)
-    
-    plt.savefig('./figs/'+name+'.png', dpi=500, bbox_inches='tight')
-    
-    
+    plt.savefig('./figs/'+name+'_r2.png', dpi=500, bbox_inches='tight')
+
+#==============================================================================
 # GPR training using Active Learning    
 def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     '''
@@ -163,8 +128,10 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     df :        (str)  The name and directory of the data frame (.csv)
     n_samples : (int)  Number of samples used in the active learning
     seed:       (int)  The way the data will be shuffled
+    no_shuf:    (bool) Whether to shuffle the data or not (Used for unseen monomers) 
     pca:        (bool) choices are 'True' OR 'False', apply PCA 
-    fe:         (str)  free energy to be used as an output, choices are 'assoc', 'disassoc'   
+    fe:         (str)  free energy to be used as an output, choices are 'assoc', 'disassoc'
+    use_shap:   (bool) Use SHAP for explainable AI
     Returns
     -------
     metrics: (array) an array with number of queries,Root Mean Squared Error, 
@@ -176,6 +143,8 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     df = pd.read_csv(df)
     # define X and y
     X = df.drop(['letters','assoc','disassoc'], axis=1)
+    if (fe=='disassoc'):
+        X['T'] = X['T'].replace({750:0, 1000:1, 1250:2})
     y = df[fe]
     letters = np.array(df['letters'])
     if (pca):
@@ -186,24 +155,19 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     global X_test
     if (no_shuf):
         X_sample, X_test, y_sample, y_test, pac_sample, pac_test = train_test_split(X, y, letters, 
-                                                                                    test_size=0.29,
+                                                                                    test_size=0.32,
                                                                                     random_state=None,
                                                                                     shuffle=False)
 
     else: 
     
        X_sample, X_test, y_sample, y_test, pac_sample, pac_test = train_test_split(X, y, letters, 
-                                                                                   test_size=0.29,
+                                                                                   test_size=0.32,
                                                                                    random_state=seed)
 
-    #if (use_shap):
-    #    X_sample = X_sample.drop(['T'], axis=1)
-    #    X_test = X_test.drop(['T'], axis=1)
-    #    X = X.drop(['T'], axis=1)
     # reshape y from vevtor to matrix
     y_sample = np.array(y_sample).reshape(-1,1)
     y_test = np.array(y_test).reshape(-1,1)
-
     # Scaling 
     # X
     y = np.array(df[fe]).reshape(-1,1)
@@ -246,12 +210,14 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     # Empty lists to store the results
     metrics = []
     pac_used = []
+    X_train = []
     k = 0
     for i in range (n_samples+1):
         query_idx, query_instance = regressor.query(X_sample)
         regressor.teach(X_sample[query_idx].reshape(1,-1), 
                         y_sample[query_idx].reshape(-1,1))
         pac_used.append([i,pac_sample[query_idx]])
+        X_train.append(query_instance)
         # Delete the query from the samples space to avoid reselection 
         X_sample = np.delete(X_sample, query_idx, axis=0)
         y_sample = np.delete(y_sample, query_idx, axis=0)
@@ -269,7 +235,8 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     joblib.dump(regressor, "./trained_models/"+fe+str(n_samples)+".pkl")
     
     if(use_shap):
-        explainer = shap.KernelExplainer(model = regressor.predict, data = X_test)
+        X_train_summary = shap.kmeans(np.array(X_train), 10)
+        explainer = shap.KernelExplainer(model = regressor.predict, data = X_train_summary)
         shap_obj = explainer(X_test)
         plt.rcParams['font.size'] = 18
         f1 = plt.figure()
@@ -314,9 +281,23 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
             k = k+1
     return np.array(metrics), np.array(metrics_rand), np.array(pac_used)
 
-
+#==============================================================================
 # GPR ensemble for active learning 
 def ENAL (df, n_samples, seed, pca, n_reg, fe):
+    '''
+    df:         (str)  The name and directory of the data frame (.csv)
+    n_samples:  (int)  Number of samples used in the active learning
+    seed:       (int)  The way the data will be shuffled
+    pca:        (bool) choices are 'True' OR 'False', apply PCA 
+    n_reg:      (int)  number of GP regressors in the ensemble  
+    fe:         (str)  free energy to be used as an output, choices are 'assoc', 'disassoc'
+    
+    Returns
+    -------
+    Array of (n_samples, RMSE, R2)
+    
+
+    '''
     np.random.seed(seed)
     # Read data csv    
     df = pd.read_csv(df)

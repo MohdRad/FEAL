@@ -9,21 +9,21 @@ sample, test = train_test_split(df,
                                 test_size=0.32, 
                                 random_state=42)
 
+s_arr = np.array(sample)
+s_df = pd.DataFrame(s_arr,columns=df.columns)
 
 ltr = len(sample)
 lte = len(test)
 df = pd.concat([sample,test], axis=0)
 cols = df.columns
 letters = df['letters']
-letters = letters.sort_values(ascending=True)
-letters_arr = np.array(letters)
-a = np.array(letters[:42])
 df_arr = np.array(df)
+
 sample_list = []
 test_list = []
-
+letter = 'R'
 for i in range (len(df_arr)):
-    if (df_arr[i,310] in a):
+    if (letter in df_arr[i,310]):
         test_list.append(df_arr[i])
         pass
     else:
@@ -34,7 +34,10 @@ tests = np.array(test_list)
 
 df_new = np.concatenate((samples,tests), axis=0)
 df_new = pd.DataFrame(df_new, columns=cols)
-df_new.to_csv('./cases/noA.csv',index=False)
+df_new.to_csv('./cases/noM.csv',index=False)
+
+
+
 
 
 '''
