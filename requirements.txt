@@ -5,3 +5,4 @@ scipy==1.13.0
 torch==2.3.0
 skorch==0.15.0
 pandas==2.2.2
+shap==0.46.0
