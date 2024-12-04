@@ -2,7 +2,7 @@
 
 1. Code for a possible publication about using Active Learning to discover the free energy of enouromous number of Polycyclic Aromatic Carbons (PACs) using limited number of samples.
 2. [`modAL`](https://modal-python.readthedocs.io/en/latest/) is an active learning package. Installing it on anaconda using pip has issues so we include it here.
-3. There are 313 input features to predict free energy of dimerization, last column in data_all.csv (assoc).
+3. There are 311 input features to predict free energy of dimerization, last column in data_all.csv (assoc).
 
 ## Installation
 

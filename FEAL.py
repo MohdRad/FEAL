@@ -51,12 +51,18 @@ def smoother (x,y):
   
 #==============================================================================
 # Function to plot the output of FE_AL function introduced down
-def plotting (arr, arr_r, 
-              name, unc, 
+def plotting (arr, 
+              arr_r, 
+              diff,
+              name, 
               y1_range,
               y1_ticks,
               y2_range,
               y2_ticks,
+              y3_range,
+              y3_ticks,
+              y4_range,
+              y4_ticks,
               legend_loc):
     '''
     Parameters
@@ -74,6 +80,7 @@ def plotting (arr, arr_r,
     saved plot in ./figs
 
     '''
+    # RMSE
     plt.rcParams.update({'font.size': 18})
     n_new, rmse_smooth = smoother(arr[:,0], arr[:,1])
     n_new, r2_smooth = smoother(arr[:,0], arr[:,2])
@@ -88,17 +95,16 @@ def plotting (arr, arr_r,
     ax1.plot(n_new, rmse_smooth, color='tab:red',label='AL')
     ax1.plot(n_new,rmse_r_smooth, '--', color='tab:red', label='Random')
     plt.legend(loc='best')
-    
-    if (unc):
-        n_new, rmse_unc_smooth = smoother(arr[:,0],arr[:,3])
-        n_new, rmse_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,3])
-        plt.fill_between(n_new, rmse_smooth-rmse_unc_smooth, rmse_smooth+rmse_unc_smooth,
+    n_new, rmse_unc_smooth = smoother(arr[:,0],arr[:,3])
+    n_new, rmse_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,3])
+    plt.fill_between(n_new, rmse_smooth-rmse_unc_smooth, rmse_smooth+rmse_unc_smooth,
                          color='red', alpha=0.3)
-        plt.fill_between(n_new, rmse_r_smooth-rmse_r_unc_smooth, rmse_r_smooth+rmse_r_unc_smooth,
+    plt.fill_between(n_new, rmse_r_smooth-rmse_r_unc_smooth, rmse_r_smooth+rmse_r_unc_smooth,
                          color='grey', alpha=0.5)
-        plt.legend(loc='best') 
+    plt.legend(loc='best') 
     plt.savefig('./figs/'+name+'_rmse.png', dpi=500, bbox_inches='tight')
     
+    # R2
     fig,ax2 = plt.subplots()
     ax2.set_xlabel('Number of queries')
     ax2.set_ylabel('R$^2$')
@@ -110,15 +116,44 @@ def plotting (arr, arr_r,
     ax2.yaxis.label.set(rotation='horizontal', ha='right')
     plt.legend(loc=legend_loc)
 
-    if (unc):
-        n_new, r2_unc_smooth = smoother(arr[:,0],arr[:,4])
-        n_new, r2_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,4])
-        plt.fill_between(n_new, r2_smooth-r2_unc_smooth, r2_smooth+r2_unc_smooth,
+    n_new, r2_unc_smooth = smoother(arr[:,0],arr[:,4])
+    n_new, r2_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,4])
+    plt.fill_between(n_new, r2_smooth-r2_unc_smooth, r2_smooth+r2_unc_smooth,
                          color='blue', alpha=0.3)
-        plt.fill_between(n_new, r2_r_smooth-r2_r_unc_smooth, r2_r_smooth+r2_r_unc_smooth,
+    plt.fill_between(n_new, r2_r_smooth-r2_r_unc_smooth, r2_r_smooth+r2_r_unc_smooth,
                          color='grey', alpha=0.5)
     plt.savefig('./figs/'+name+'_r2.png', dpi=500, bbox_inches='tight')
-
+    
+    
+    n_new, diff_rmse_smooth = smoother(diff[:,0], diff[:,1])
+    n_new, diff_r2_smooth = smoother(diff[:,0], diff[:,2])
+    n_new, diff_rmse_unc_smooth = smoother(diff[:,0],diff[:,3])
+    n_new, diff_r2_unc_smooth = smoother(diff[:,0],diff[:,4])
+    fig, ax3 = plt.subplots()
+    ax3.set_xlabel('Number of queries')
+    ax3.set_ylabel('RMSE$_{Rand}$ - RMSE$_{AL}$')
+    ax3.set_xlim([0,max(arr[:,0])+1.0])
+    ax3.set_ylim(y3_range)
+    ax3.set_yticks(y3_ticks)
+    ax3.plot(n_new, diff_rmse_smooth, color='tab:red')    
+    ax3.plot([0,1000], [0,0], color='black', linestyle='dashed')  
+    plt.fill_between(n_new, diff_rmse_smooth-diff_rmse_unc_smooth, diff_rmse_smooth+diff_rmse_unc_smooth,
+                         color='red', alpha=0.3)
+    plt.savefig('./figs/'+name+'_rmse_diff.png', dpi=500, bbox_inches='tight')
+    
+    fig, ax4 = plt.subplots()
+    ax4.set_xlabel('Number of queries')
+    ax4.set_ylabel('R$^2_{AL}$ - R$^2_{Rand}$')
+    ax4.set_xlim([0,max(arr[:,0])+1.0])
+    ax4.set_ylim(y4_range)
+    ax4.set_yticks(y4_ticks)
+    ax4.plot(n_new, diff_r2_smooth, color='tab:blue')
+    ax4.plot([0,1000], [0,0], color='black', linestyle='dashed')  
+    #ax4.plot(n_new, np.zeros(300), color='black', linestyle='dashed')    
+    plt.fill_between(n_new, diff_r2_smooth-diff_r2_unc_smooth, diff_r2_smooth+diff_r2_unc_smooth,
+                         color='blue', alpha=0.3)
+    plt.savefig('./figs/'+name+'_r2_diff.png', dpi=500, bbox_inches='tight')
+   
 #==============================================================================
 # GPR training using Active Learning    
 def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
@@ -143,8 +178,6 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     df = pd.read_csv(df)
     # define X and y
     X = df.drop(['letters','assoc','disassoc'], axis=1)
-    if (fe=='disassoc'):
-        X['T'] = X['T'].replace({750:0, 1000:1, 1250:2})
     y = df[fe]
     letters = np.array(df['letters'])
     if (pca):
@@ -152,7 +185,6 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
         obj = DRAL(path_X='./cases/PCA.csv')
         X = obj.PCA(var=0.95)
 
-    global X_test
     if (no_shuf):
         X_sample, X_test, y_sample, y_test, pac_sample, pac_test = train_test_split(X, y, letters, 
                                                                                     test_size=0.32,
@@ -164,7 +196,7 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
        X_sample, X_test, y_sample, y_test, pac_sample, pac_test = train_test_split(X, y, letters, 
                                                                                    test_size=0.32,
                                                                                    random_state=seed)
-
+    X_shap = np.array(X_sample)
     # reshape y from vevtor to matrix
     y_sample = np.array(y_sample).reshape(-1,1)
     y_test = np.array(y_test).reshape(-1,1)
@@ -185,10 +217,9 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     # Defining the active learner using modAL package 
     
     gpr = GaussianProcessRegressor(kernel=kernel,
-                         random_state=0,
-                         n_restarts_optimizer=0,
-                         alpha=1)
-
+                        random_state=0,
+                        n_restarts_optimizer=0,
+                        alpha=1)
                      
     # Start with n random samples
     idx_in=np.random.choice(len(X_sample_scale), size=1, replace=False)
@@ -206,7 +237,7 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
                              y_training=y_ini)
     
     # To calculate metrics every 5 points
-    n_metrics = np.arange(0,n_samples+10,10)
+    n_metrics = np.arange(5,n_samples+5,5)
     # Empty lists to store the results
     metrics = []
     pac_used = []
@@ -237,15 +268,31 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     if(use_shap):
         X_train_summary = shap.kmeans(np.array(X_train), 10)
         explainer = shap.KernelExplainer(model = regressor.predict, data = X_train_summary)
-        shap_obj = explainer(X_test)
-        plt.rcParams['font.size'] = 18
+        X_test_shap = pd.DataFrame(X_test_scale, columns=X.columns)
+        shap_obj = explainer(X_test_shap)
+        shap_values = explainer.shap_values(X_test_shap)
+        avg_shap = np.mean(np.abs(shap_values), axis=0)
+        cols = np.array(X.columns)
+        indices = avg_shap.argsort()
+        top10 = indices[len(indices)-10:]
+        plt.rcParams['font.size'] = 12
         f1 = plt.figure()
         ax1 = f1.add_subplot()
-        shap.plots.bar(shap_obj, show=False, max_display=6)
+        #shap.plots.bar(shap_obj, show=False, max_display=10)
+        f1 = plt.figure()
+        plt.barh(range(10), avg_shap[top10], color='dodgerblue', align='center')
+        plt.yticks(range(10), cols[top10])
+        if (fe=='assoc'):
+            plt.xticks([0,0.05,0.10,0.15,0.2, 0.25,0.30])
+        elif(fe=='disassoc'):
+            plt.xticks([0,0.05,0.10])
+        plt.xlabel('mean(|SHAP Values|)')
+        for index, value in enumerate(avg_shap[top10]):
+            plt.text(value, index, str("{:.4f}".format(value)))
         plt.savefig('./figs/shap_bar_'+fe+'.png', dpi=500, bbox_inches='tight')
         f2 = plt.figure()
         ax2 = f2.add_subplot()
-        shap.plots.beeswarm(shap_obj, show=False, max_display=6)    
+        shap.summary_plot(shap_obj, show=False, max_display=10)    
         plt.savefig('./figs/shap_swarm_'+fe+'.png', dpi=500, bbox_inches='tight')
     #=================================================================
     # GPR Training by Random sampling
@@ -376,7 +423,48 @@ def ENAL (df, n_samples, seed, pca, n_reg, fe):
         joblib.dump(committee, "./trained_models/committee.pkl") 
     return np.array(metrics)
 
-
-
-
-
+# Function to get FE at 100 different sampling/testing splits
+def fe_unc (fe):
+    seed = np.arange(0,100,1)
+    n_samples = np.arange(5,105,5)
+    for k in range(len(fe)):
+        summary = []
+        for j in range(len(n_samples)):
+            lst = []
+            lst_rand = []
+            for i in range (0,len(seed)):
+                metrics, metrics_rd, pac_used = FE_AL(df='data_all.csv',
+                                            n_samples=n_samples[j],
+                                            seed=seed[i],
+                                            no_shuf=False,
+                                            pca=False,
+                                            fe=fe[k],
+                                            use_shap=False)
+                lst.append([i, metrics[-1,1], metrics[-1,2]])
+                lst_rand.append([i, metrics_rd[-1,1], metrics_rd[-1,2]])
+                a = np.array(lst)
+                a_rand = np.array(lst_rand)
+                print(fe[k])
+                print("Number of samples =", n_samples[j])
+                print ("i =",i,"/100")
+                print(np.mean(a[:,1]),
+                      np.mean(a[:,2]), 
+                      np.mean(a_rand[:,1]), 
+                      np.mean(a_rand[:,2]))
+            diff_rmse = a_rand[:,(1,2)]-a[:,(1,2)]
+            diff_r2 = a[:,(1,2)]-a_rand[:,(1,2)]
+            summary.append([n_samples[j],           # 0 Number of samples
+                            np.mean(a[:,1]),        # 1 RMSE-AL-mean
+                            np.std(a[:,1]),         # 2 RMSE-AL-std
+                            np.mean(a[:,2]),        # 3 R2-AL-mean
+                            np.std(a[:,2]),         # 4 R2-AL-Std
+                            np.mean(a_rand[:,1]),   # 5 RMSE-Random-mean
+                            np.std(a_rand[:,1]),    # 6 RMSE-Random-std
+                            np.mean(a_rand[:,2]),   # 7 R2-Random-mean
+                            np.std(a_rand[:,2]),    # 8 R2-Random-std
+                            np.mean(diff_rmse[:,0]),# 9 RMSE: mean(Rand - AL)
+                            np.mean(diff_r2[:,1]),  # 10 R2: mean(Rand - AL)
+                            np.std(diff_rmse[:,0]), # 11 RMSE: Std(Rand-AL)
+                            np.std(diff_r2[:,1])])  # 12 R2: Std(Rand-AL)
+        results = np.array(summary)
+        np.savetxt('./cases/test_'+fe[k]+'.txt', results)
