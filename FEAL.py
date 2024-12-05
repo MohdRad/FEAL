@@ -382,17 +382,15 @@ def ENAL (df, n_samples, seed, pca, n_reg, fe):
     # Defining kernel for Gaussian Process Regressor 
     kernel = DotProduct()
     # Defining the active learner using modAL package 
-    gpr = GaussianProcessRegressor(kernel=kernel,
-                         random_state=0,
-                         n_restarts_optimizer=0,
-                         alpha=1)
     # Use GPR as an Active Learner, Max Std as a query strategy
     # initializing the regressors
    
-    learner_list = [ActiveLearner(estimator=gpr,
-                        X_training=X_ini[idx].reshape(1,-1), 
-                        y_training=y_ini[idx].reshape(-1,1))
-                for idx in range(len(idx_in))]
+    learner_list = [ActiveLearner(estimator=GaussianProcessRegressor(kernel=kernel,
+                                                                     n_restarts_optimizer=0,
+                                                                     alpha=1),
+                                  X_training=X_ini[idx].reshape(1,-1), 
+                                  y_training=y_ini[idx].reshape(-1,1))
+                    for idx in range(len(idx_in))]
 
     # initializing the Committee
     committee = CommitteeRegressor(learner_list=learner_list,
@@ -412,7 +410,6 @@ def ENAL (df, n_samples, seed, pca, n_reg, fe):
         y_sample = np.delete(y_sample, query_idx, axis=0)
         # Metrics every 5 samples 
         if (i == n_metrics[k]):
-            # Trained model Prediction on unseen data
             y_pred = committee.predict(X_test_scale)
             y_pred = y_pred.reshape(-1,1)
             y_pred_kj = scaler_y.inverse_transform(y_pred)
@@ -468,3 +465,5 @@ def fe_unc (fe):
                             np.std(diff_r2[:,1])])  # 12 R2: Std(Rand-AL)
         results = np.array(summary)
         np.savetxt('./cases/test_'+fe[k]+'.txt', results)
+        
+
