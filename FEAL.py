@@ -1,17 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import (RBF, 
-                                              Matern, 
-                                              DotProduct, 
-                                              RationalQuadratic,
-                                              ExpSineSquared,
-                                              ConstantKernel,
-                                              WhiteKernel,
-                                              Exponentiation,
-                                              Sum,
-                                              Product)
-
+from sklearn.gaussian_process.kernels import DotProduct
 from modAL.models.learners import ActiveLearner, CommitteeRegressor
 import pandas as pd
 from sklearn.metrics import r2_score, mean_squared_error
@@ -74,10 +64,11 @@ def plotting (arr,
     y1_range:   (list) [min,max] of RMSE  
     y1_ticks:   (list/array) RMSE ticks elements, use numpy.arange 
     y2_range:   (list) [min,max] of R2  
-    y2_ticks:   (list/array) R2 ticks elements, use numpy.arange 
+    y2_ticks:   (list/array) R2 ticks elements, use numpy.arange
+    y3_range:   (list/array)
     Returns
     -------
-    saved plot in ./figs
+    saves plot in ./figs
 
     '''
     # RMSE
@@ -153,50 +144,79 @@ def plotting (arr,
     plt.fill_between(n_new, diff_r2_smooth-diff_r2_unc_smooth, diff_r2_smooth+diff_r2_unc_smooth,
                          color='blue', alpha=0.3)
     plt.savefig('./figs/'+name+'_r2_diff.png', dpi=500, bbox_inches='tight')
-   
+    
+
+#==============================================================================
+# Holdout 
+def hold_out_set (path, letter, fe):
+    df = pd.read_csv(path)
+    cols = df.columns
+    df_arr = np.array(df)
+    sample_list = []
+    test_list = []
+    for i in range (len(df_arr)):
+        if (letter in df_arr[i,310]):
+            test_list.append(df_arr[i])
+        else:
+            sample_list.append(df_arr[i])
+    global samples, tests
+    samples = np.array(sample_list)
+    samples = pd.DataFrame(samples,columns=cols)
+    tests = np.array(test_list)
+    tests = pd.DataFrame(tests,columns=cols)
+    samples = samples.sample(len(df_arr) - round(0.32*len(df_arr)), random_state=42)
+    X_sample = samples.drop(['letters','assoc','disassoc'], axis=1)
+    y_sample = samples[fe]
+    X_test = tests.drop(['letters','assoc','disassoc'], axis=1)
+    y_test = tests[fe]
+    return X_sample, X_test, y_sample, y_test
+
 #==============================================================================
 # GPR training using Active Learning    
-def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
+def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case):
     '''
     Parameters
     ----------
     df :        (str)  The name and directory of the data frame (.csv)
     n_samples : (int)  Number of samples used in the active learning
     seed:       (int)  The way the data will be shuffled
-    no_shuf:    (bool) Whether to shuffle the data or not (Used for unseen monomers) 
     pca:        (bool) choices are 'True' OR 'False', apply PCA 
     fe:         (str)  free energy to be used as an output, choices are 'assoc', 'disassoc'
     use_shap:   (bool) Use SHAP for explainable AI
+    hold_out:   (bool) Test on a molecule not in the sampling space 
+    letter:     (str) Choices are {A, C, D, E, G, J, P, R}, set to None if holdout is False
+    
     Returns
     -------
-    metrics: (array) an array with number of queries,Root Mean Squared Error, 
+    metrics: (array) an array with number of queries, Root Mean Squared Error, 
                      and cofficient of determination 
 
     '''
     np.random.seed(seed)
     # Read data csv    
-    df = pd.read_csv(df)
+    df = pd.read_csv(path)
     # define X and y
     X = df.drop(['letters','assoc','disassoc'], axis=1)
     y = df[fe]
-    letters = np.array(df['letters'])
     if (pca):
         X.to_csv('./cases/PCA.csv', index=False)
         obj = DRAL(path_X='./cases/PCA.csv')
         X = obj.PCA(var=0.95)
-
-    if (no_shuf):
-        X_sample, X_test, y_sample, y_test, pac_sample, pac_test = train_test_split(X, y, letters, 
-                                                                                    test_size=0.32,
-                                                                                    random_state=None,
-                                                                                    shuffle=False)
+    
+    global X_sample, X_test, y_sample, y_test
+    if (hold_out):
+        X_sample, X_test, y_sample, y_test = hold_out_set(path, letter, fe)
+        
 
     else: 
+        X_sample, X_test, y_sample, y_test = train_test_split(X, y,  
+                                                             test_size=0.32,
+                                                             random_state=seed)
     
-       X_sample, X_test, y_sample, y_test, pac_sample, pac_test = train_test_split(X, y, letters, 
-                                                                                   test_size=0.32,
-                                                                                   random_state=seed)
-    X_shap = np.array(X_sample)
+    if (ref_case):
+        X_test = X_test[:42]
+        y_test = y_test[:42]
+    
     # reshape y from vevtor to matrix
     y_sample = np.array(y_sample).reshape(-1,1)
     y_test = np.array(y_test).reshape(-1,1)
@@ -240,14 +260,12 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
     n_metrics = np.arange(5,n_samples+5,5)
     # Empty lists to store the results
     metrics = []
-    pac_used = []
     X_train = []
     k = 0
     for i in range (n_samples+1):
         query_idx, query_instance = regressor.query(X_sample)
         regressor.teach(X_sample[query_idx].reshape(1,-1), 
                         y_sample[query_idx].reshape(-1,1))
-        pac_used.append([i,pac_sample[query_idx]])
         X_train.append(query_instance)
         # Delete the query from the samples space to avoid reselection 
         X_sample = np.delete(X_sample, query_idx, axis=0)
@@ -326,7 +344,7 @@ def FE_AL (df, n_samples, seed, no_shuf, pca, fe, use_shap):
             r2 = r2_score(y_test, y_pred_kj)
             metrics_rand.append([j,rmse,r2])
             k = k+1
-    return np.array(metrics), np.array(metrics_rand), np.array(pac_used)
+    return np.array(metrics), np.array(metrics_rand)
 
 #==============================================================================
 # GPR ensemble for active learning 
@@ -424,19 +442,23 @@ def ENAL (df, n_samples, seed, pca, n_reg, fe):
 def fe_unc (fe):
     seed = np.arange(0,100,1)
     n_samples = np.arange(5,105,5)
+    global summary
     for k in range(len(fe)):
         summary = []
         for j in range(len(n_samples)):
             lst = []
             lst_rand = []
             for i in range (0,len(seed)):
-                metrics, metrics_rd, pac_used = FE_AL(df='data_all.csv',
-                                            n_samples=n_samples[j],
-                                            seed=seed[i],
-                                            no_shuf=False,
-                                            pca=False,
-                                            fe=fe[k],
-                                            use_shap=False)
+                metrics, metrics_rd = FE_AL(path='data_all.csv',
+                                                          n_samples=n_samples[j],
+                                                          seed=seed[i],
+                                                          pca=False,
+                                                          fe=fe[k],
+                                                          use_shap=False,
+                                                          hold_out=False,
+                                                          letter=None,
+                                                          ref_case=False)
+
                 lst.append([i, metrics[-1,1], metrics[-1,2]])
                 lst_rand.append([i, metrics_rd[-1,1], metrics_rd[-1,2]])
                 a = np.array(lst)
@@ -464,6 +486,6 @@ def fe_unc (fe):
                             np.std(diff_rmse[:,0]), # 11 RMSE: Std(Rand-AL)
                             np.std(diff_r2[:,1])])  # 12 R2: Std(Rand-AL)
         results = np.array(summary)
-        np.savetxt('./cases/test_'+fe[k]+'.txt', results)
-        
+        np.savetxt('./cases/test_'+fe[k]+'.txt', results)       
+
 

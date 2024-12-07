@@ -3,35 +3,12 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('data_all.csv')
 
-sample, test = train_test_split(df, 
-                                test_size=0.32, 
-                                random_state=42)
 
-s_arr = np.array(sample)
-s_df = pd.DataFrame(s_arr,columns=df.columns)
+#dfho = hold_out('data_all.csv', 'A')
 
-ltr = len(sample)
-lte = len(test)
-df = pd.concat([sample,test], axis=0)
-cols = df.columns
-letters = df['letters']
-df_arr = np.array(df)
 
-sample_list = []
-test_list = []
-letter = 'R'
-for i in range (len(df_arr)):
-    if (letter in df_arr[i,310]):
-        test_list.append(df_arr[i])
-        pass
-    else:
-        sample_list.append(df_arr[i])
-    
-samples = np.array(sample_list)
-tests = np.array(test_list)
 
-df_new = np.concatenate((samples,tests), axis=0)
-df_new = pd.DataFrame(df_new, columns=cols)
-df_new.to_csv('./cases/noM.csv',index=False)
+
+
+

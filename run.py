@@ -1,38 +1,12 @@
 from FEAL import FE_AL, plotting, ENAL, fe_unc
 import numpy as np
-import matplotlib.pyplot as plt
-
-#========================================================
-# Drop A from sampling space
-# From other monomers, change "noA".csv to "noC", "noE", ......
-monomers = ['A', 'C', 'E', 'G', 'I', 'K', 'M']
-
-for monomer in monomers:
-    metrics, metrics_rd, pac_used = FE_AL(df='./cases/no'+monomer+'.csv',
-                                          n_samples=100,
-                                          seed=42,
-                                          no_shuf=True,
-                                          pca=False,
-                                          fe='assoc',
-                                          use_shap=False)
-                       
-    #Disassoc
-    metrics, metrics_rd, pac_used = FE_AL(df='./cases/no'+monomer+'.csv',
-                                          n_samples=100,
-                                          seed=42,
-                                          no_shuf=True,
-                                          pca=False,
-                                          fe='disassoc',
-                                          use_shap=False)
-                       
-                     
+             
 #========================================================
 # Testing model stability by running 100 case
 # The data is shuffled at the beggining of each run 
-# The run takes around 2.5 hours, the results are in ./cases/shuffle_assoc/diassoc.txt
+# The run takes around 3 hours, the results are in ./cases/shuffle_assoc/diassoc.txt
 # uncomment the two lines below if you want to run 
-#fe_unc('assoc')
-#fe_unc('disassoc')
+fe_unc(['assoc','disassoc'])
 
 # Plot the saved results
 # Association
@@ -79,16 +53,83 @@ plotting(arr=metrics,
 
 #===============================================================
 # Using more than one GPR 
-
+n_reg = [1,3,5,7,9]
 R2 = []
-metrics = ENAL(df='data_all.csv', 
-               n_samples=100, 
-               seed=42, 
-               pca=False, 
-               n_reg=5,
-               fe='disassoc')
-R2.append(metrics[-1,2])
+RMSE = []
+for i in range(len(n_reg)):
+    metrics = ENAL(df='data_all.csv', 
+                   n_samples=100, 
+                   seed=42, 
+                   pca=False, 
+                   n_reg=n_reg[i],
+                   fe='disassoc')
+    R2.append(metrics[-1,2])
+    RMSE.append(metrics[-1,1])
 
+
+#========================================================
+# Dropout from sampling space
+# In the paper: I==J, P==K, R==M
+monomers = ['A', 'C', 'E', 'G', 'J', 'P', 'R']
+
+# Association Free Energy
+# Reference metrics to compare with holdout 
+metrics, metrics_rd = FE_AL(path='data_all.csv',
+                                          n_samples=100,
+                                          seed=42,
+                                          pca=False,
+                                          fe='assoc',
+                                          use_shap=False,
+                                          hold_out=False,
+                                          letter=None,
+                                          ref_case=True)
+print('assoc FE Ref. metrics using 40 samples =', metrics[7])
+r2_ref = metrics[7,2]
+
+# Holdout runs
+for monomer in monomers:
+    metrics, metrics_rd = FE_AL(path='data_all.csv',
+                                          n_samples=100,
+                                          seed=42,
+                                          pca=False,
+                                          fe='assoc',
+                                          use_shap=False,
+                                          hold_out=True,
+                                          letter=monomer,
+                                          ref_case=False)
+    
+    print (monomer,                                     # Molecule        
+           round(metrics[7,1],2),                       # RMSE
+           round(metrics[7,2],2),                       # R2
+           round(100*(-metrics[7,2]+r2_ref)/(r2_ref),2)) #Delta R2
+
+# Disassoc. Free Energy
+# Reference Value 
+metrics, metrics_rd = FE_AL(path='data_all.csv',
+                                          n_samples=100,
+                                          seed=42,
+                                          pca=False,
+                                          fe='disassoc',
+                                          use_shap=False,
+                                          hold_out=False,
+                                          letter=None,
+                                          ref_case=True)
+r2_ref = metrics[13,2]
+print('disassoc FE Ref. metrics using 70 samples =', metrics[13])
+for monomer in monomers:
+    metrics, metrics_rd = FE_AL(path='data_all.csv',
+                                          n_samples=100,
+                                          seed=42,
+                                          pca=False,
+                                          fe='disassoc',
+                                          use_shap=False,
+                                          hold_out=True,
+                                          letter=monomer,
+                                          ref_case=False)
+    print (monomer, 
+           round(metrics[13,1],2),
+           round(metrics[13,2],2), 
+           round(100*(-metrics[13,2]+r2_ref)/(r2_ref),2))
 
 #===============================================================
 # Use shap
