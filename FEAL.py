@@ -293,7 +293,7 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
         cols = np.array(X.columns)
         indices = avg_shap.argsort()
         top10 = indices[len(indices)-10:]
-        plt.rcParams['font.size'] = 12
+        plt.rcParams['font.size'] = 18
         f1 = plt.figure()
         ax1 = f1.add_subplot()
         #shap.plots.bar(shap_obj, show=False, max_display=10)
@@ -301,16 +301,23 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
         plt.barh(range(10), avg_shap[top10], color='dodgerblue', align='center')
         plt.yticks(range(10), cols[top10])
         if (fe=='assoc'):
-            plt.xticks([0,0.05,0.10,0.15,0.2, 0.25,0.30])
+            plt.xticks([0,0.05,0.10,0.15,0.2, 0.25,0.30, 0.35])
         elif(fe=='disassoc'):
             plt.xticks([0,0.05,0.10])
         plt.xlabel('mean(|SHAP Values|)')
         for index, value in enumerate(avg_shap[top10]):
-            plt.text(value, index, str("{:.4f}".format(value)))
+            plt.text(value, index-0.25, str("{:.4f}".format(value)))
         plt.savefig('./figs/shap_bar_'+fe+'.png', dpi=500, bbox_inches='tight')
         f2 = plt.figure()
         ax2 = f2.add_subplot()
-        shap.summary_plot(shap_obj, show=False, max_display=10)    
+        shap.summary_plot(shap_obj, show=False, max_display=10)
+        fig, ax = plt.gcf(), plt.gca()
+        ax.tick_params(axis='both', which='major', labelsize=18)
+        if (fe=='assoc'):
+            ax.set_xticks([-0.3, 0, 0.3])
+        elif(fe=='disassoc'):
+            ax.set_xticks([-0.1, 0, 0.1])
+        ax.set_xlabel("SHAP value (impact on model output)", fontsize=18)
         plt.savefig('./figs/shap_swarm_'+fe+'.png', dpi=500, bbox_inches='tight')
     #=================================================================
     # GPR Training by Random sampling
@@ -438,6 +445,8 @@ def ENAL (df, n_samples, seed, pca, n_reg, fe):
         joblib.dump(committee, "./trained_models/committee.pkl") 
     return np.array(metrics)
 
+
+#==============================================================================
 # Function to get FE at 100 different sampling/testing splits
 def fe_unc (fe):
     seed = np.arange(0,100,1)
@@ -488,4 +497,45 @@ def fe_unc (fe):
         results = np.array(summary)
         np.savetxt('./cases/test_'+fe[k]+'.txt', results)       
 
-
+#==============================================================================
+# Representer Theorem
+def rep_theory (fe, xlim):
+    df = pd.read_csv('./cases/shap.csv')
+    X =  df.drop(['letters','assoc','disassoc'], axis=1)
+    y = df[fe]
+    X_train, X_test, y_train, y_test = train_test_split(X,y,
+                                                    test_size=0.32,
+                                                    random_state=42)
+    gpr = GaussianProcessRegressor(kernel=DotProduct(sigma_0=1),
+                               alpha=1,
+                               random_state=0)
+    scaler_X = MinMaxScaler()
+    scaler_y = MinMaxScaler()
+    X_train = scaler_X.fit_transform(X_train)
+    y_train = scaler_y.fit_transform(np.array(y_train).reshape(-1,1))
+    gpr.fit(X_train,y_train)
+    alpha = gpr.alpha_.reshape(1,-1)
+    w = alpha.dot(X_train)
+    X_test = scaler_X.fit_transform(X_test)
+    y_pred = gpr.predict(X_test)
+    y_pred_2 = []
+    for i in range(len(X_test)):
+        y_pred_2.append(w.dot(X_test[i,:].reshape(-1,1))[0][0])
+    plt.figure()
+    plt.rcParams.update({'font.size': 18})
+    plt.plot(y_pred_2, y_pred)    
+    plt.xlabel('$w\cdot x$')
+    plt.ylabel('$gpr.predict()$')
+    w_abs = np.absolute(w).reshape(-1,1)
+    w_df = pd.DataFrame(w_abs, index=X.columns)
+    w_df = w_df.sort_values(by=0,ascending=False)
+    top10 = w_df[:10]
+    top10 = top10.sort_values(by=0,ascending=True)
+    plt.figure()
+    top10.plot.barh(legend=False, color='dodgerblue')
+    plt.xlabel ('|w|')
+    plt.xlim(xlim)
+    indices = np.array(top10.values).flatten()
+    for index, value in enumerate(indices):
+        plt.text(value, index-0.25, str("{:.4f}".format(value)))
+    plt.savefig('./figs/rep_theory_'+fe+'.png', dpi=500, bbox_inches='tight')

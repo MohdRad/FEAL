@@ -1,4 +1,4 @@
-from FEAL import FE_AL, plotting, ENAL, fe_unc
+from FEAL import FE_AL, plotting, ENAL, fe_unc, rep_theory
 import numpy as np
              
 #========================================================
@@ -133,20 +133,29 @@ for monomer in monomers:
 
 #===============================================================
 # Use shap
-metrics, metrics_rd, pac_used = FE_AL(df='./cases/shap.csv',
+metrics, metrics_rd = FE_AL(path='./cases/shap.csv',
                    n_samples=100,
                    seed=42,
-                   no_shuf=False,
                    pca=False,
                    fe='assoc',
-                   use_shap=True)
+                   use_shap=True,
+                   hold_out=False,
+                   letter=None,
+                   ref_case=False)
 
 
-metrics, metrics_rd, pac_used = FE_AL(df='./cases/shap.csv',
+metrics, metrics_rd  = FE_AL(path='./cases/shap.csv',
                    n_samples=100,
                    seed=42,
-                   no_shuf=False,
                    pca=False,
                    fe='disassoc',
-                   use_shap=True)
+                   use_shap=True,
+                   hold_out=False,
+                   letter=None,
+                   ref_case=False)
 
+
+#==============================================================================
+# Use Representer Theorem
+rep_theory ('assoc', [0,0.85])
+rep_theory ('disassoc', [0,0.27])
