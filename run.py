@@ -5,8 +5,8 @@ import numpy as np
 # Testing model stability by running 100 case
 # The data is shuffled at the beggining of each run 
 # The run takes around 3 hours, the results are in ./cases/shuffle_assoc/diassoc.txt
-# uncomment the two lines below if you want to run 
-fe_unc(['assoc','disassoc'])
+# uncomment the following line if you want to run 
+#fe_unc(['assoc','disassoc'])
 
 # Plot the saved results
 # Association

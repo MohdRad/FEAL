@@ -84,7 +84,7 @@ def plotting (arr,
     ax1.set_ylim(y1_range)
     ax1.set_yticks(y1_ticks)
     ax1.plot(n_new, rmse_smooth, color='tab:red',label='AL')
-    ax1.plot(n_new,rmse_r_smooth, '--', color='tab:red', label='Random')
+    ax1.plot(n_new,rmse_r_smooth, '--', color='black', label='Random')
     plt.legend(loc='best')
     n_new, rmse_unc_smooth = smoother(arr[:,0],arr[:,3])
     n_new, rmse_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,3])
@@ -103,7 +103,7 @@ def plotting (arr,
     ax2.set_ylim(y2_range)
     ax2.set_yticks(y2_ticks)
     ax2.plot(n_new, r2_smooth, color='tab:blue',label='AL')
-    ax2.plot(n_new, r2_r_smooth, '--', color='tab:blue', label='Random')
+    ax2.plot(n_new, r2_r_smooth, '--', color='black', label='Random')
     ax2.yaxis.label.set(rotation='horizontal', ha='right')
     plt.legend(loc=legend_loc)
 
