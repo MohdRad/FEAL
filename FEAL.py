@@ -1,7 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import DotProduct
+from sklearn.gaussian_process.kernels import (DotProduct,
+                                              RBF,
+                                              Matern,
+                                              RationalQuadratic,
+                                              ExpSineSquared)
 from modAL.models.learners import ActiveLearner, CommitteeRegressor
 import pandas as pd
 from sklearn.metrics import r2_score, mean_squared_error
@@ -14,7 +18,10 @@ from modAL.disagreement import max_std_sampling
 from scipy.interpolate import make_interp_spline
 from sklearn.model_selection import train_test_split
 import shap
-
+from pathlib import Path
+from sklearn import manifold
+from sklearn.decomposition import PCA
+#import umap
 
 # For active learning, we shall define a custom query strategy 
 # tailored to Gaussian processes (gp).
@@ -42,8 +49,10 @@ def smoother (x,y):
 #==============================================================================
 # Function to plot the output of FE_AL function introduced down
 def plotting (arr, 
-              arr_r, 
+              arr_r,
+              stratified,
               diff,
+              smoothing,
               name, 
               y1_range,
               y1_ticks,
@@ -73,10 +82,33 @@ def plotting (arr,
     '''
     # RMSE
     plt.rcParams.update({'font.size': 18})
-    n_new, rmse_smooth = smoother(arr[:,0], arr[:,1])
-    n_new, r2_smooth = smoother(arr[:,0], arr[:,2])
-    n_new, rmse_r_smooth = smoother(arr_r[:,0], arr_r[:,1])
-    n_new, r2_r_smooth = smoother(arr_r[:,0], arr_r[:,2])
+    if (smoothing):
+        n_new, rmse_smooth = smoother(arr[:,0], arr[:,1])
+        n_new, r2_smooth = smoother(arr[:,0], arr[:,2])
+        n_new, rmse_r_smooth = smoother(arr_r[:,0], arr_r[:,1])
+        n_new, r2_r_smooth = smoother(arr_r[:,0], arr_r[:,2])
+        n_new, rmse_unc_smooth = smoother(arr[:,0],arr[:,3])
+        n_new, rmse_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,3])
+        n_new, r2_unc_smooth = smoother(arr[:,0],arr[:,4])
+        n_new, r2_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,4])
+        n_new, diff_rmse_smooth = smoother(diff[:,0], diff[:,1])
+        n_new, diff_rmse_unc_smooth = smoother(diff[:,0], diff[:,3])
+        n_new, diff_r2_smooth = smoother(diff[:,0], diff[:,2])
+        n_new, diff_r2_unc_smooth = smoother(diff[:,0], diff[:,4])
+    else: 
+        n_new, rmse_smooth = arr[:,0], arr[:,1]
+        n_new, r2_smooth = arr[:,0], arr[:,2]
+        n_new, rmse_r_smooth = arr_r[:,0], arr_r[:,1]
+        n_new, r2_r_smooth = arr_r[:,0], arr_r[:,2]
+        n_new, rmse_unc_smooth = arr[:,0], arr[:,3]
+        n_new, rmse_r_unc_smooth = arr_r[:,0], arr_r[:,3]
+        n_new, r2_unc_smooth = arr[:,0], arr[:,4]
+        n_new, r2_r_unc_smooth = arr_r[:,0], arr_r[:,4]
+        n_new, diff_rmse_smooth = diff[:,0], diff[:,1]
+        n_new, diff_rmse_unc_smooth = diff[:,0], diff[:,3]
+        n_new, diff_r2_unc_smooth = diff[:,0], diff[:,4]
+        n_new, diff_r2_smooth = diff[:,0], diff[:,2]
+    
     fig,ax1 = plt.subplots()
     ax1.set_xlabel('Number of queries')
     ax1.set_ylabel('RMSE kJ/mol')
@@ -84,16 +116,20 @@ def plotting (arr,
     ax1.set_ylim(y1_range)
     ax1.set_yticks(y1_ticks)
     ax1.plot(n_new, rmse_smooth, color='tab:red',label='AL')
-    ax1.plot(n_new,rmse_r_smooth, '--', color='black', label='Random')
+    if (stratified):
+        ax1.plot(n_new,rmse_r_smooth, '--', color='black', label='Stratified')
+    else:
+        ax1.plot(n_new,rmse_r_smooth, '--', color='black', label='Random')
     plt.legend(loc='best')
-    n_new, rmse_unc_smooth = smoother(arr[:,0],arr[:,3])
-    n_new, rmse_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,3])
     plt.fill_between(n_new, rmse_smooth-rmse_unc_smooth, rmse_smooth+rmse_unc_smooth,
                          color='red', alpha=0.3)
     plt.fill_between(n_new, rmse_r_smooth-rmse_r_unc_smooth, rmse_r_smooth+rmse_r_unc_smooth,
                          color='grey', alpha=0.5)
-    plt.legend(loc='best') 
-    plt.savefig('./figs/'+name+'_rmse.png', dpi=500, bbox_inches='tight')
+    plt.title("(a)", y=-0.35)
+    plt.legend(loc='best')
+    p = Path('./figs/'+name)
+    p.mkdir(parents=True, exist_ok=True)
+    plt.savefig('./figs/'+name+'/'+name+'_rmse.png', dpi=500, bbox_inches='tight')
     
     # R2
     fig,ax2 = plt.subplots()
@@ -103,23 +139,21 @@ def plotting (arr,
     ax2.set_ylim(y2_range)
     ax2.set_yticks(y2_ticks)
     ax2.plot(n_new, r2_smooth, color='tab:blue',label='AL')
-    ax2.plot(n_new, r2_r_smooth, '--', color='black', label='Random')
+    if (stratified):
+        ax2.plot(n_new, r2_r_smooth, '--', color='black', label='Stratified')
+    else:
+        ax2.plot(n_new, r2_r_smooth, '--', color='black', label='Random')
     ax2.yaxis.label.set(rotation='horizontal', ha='right')
+    plt.title("(b)", y=-0.35)
     plt.legend(loc=legend_loc)
 
-    n_new, r2_unc_smooth = smoother(arr[:,0],arr[:,4])
-    n_new, r2_r_unc_smooth = smoother(arr_r[:,0],arr_r[:,4])
     plt.fill_between(n_new, r2_smooth-r2_unc_smooth, r2_smooth+r2_unc_smooth,
                          color='blue', alpha=0.3)
     plt.fill_between(n_new, r2_r_smooth-r2_r_unc_smooth, r2_r_smooth+r2_r_unc_smooth,
                          color='grey', alpha=0.5)
-    plt.savefig('./figs/'+name+'_r2.png', dpi=500, bbox_inches='tight')
+    plt.savefig('./figs/'+name+'/'+name+'_r2.png', dpi=500, bbox_inches='tight')
     
-    
-    n_new, diff_rmse_smooth = smoother(diff[:,0], diff[:,1])
-    n_new, diff_r2_smooth = smoother(diff[:,0], diff[:,2])
-    n_new, diff_rmse_unc_smooth = smoother(diff[:,0],diff[:,3])
-    n_new, diff_r2_unc_smooth = smoother(diff[:,0],diff[:,4])
+    # RMSE diff
     fig, ax3 = plt.subplots()
     ax3.set_xlabel('Number of queries')
     ax3.set_ylabel('RMSE$_{Rand}$ - RMSE$_{AL}$')
@@ -130,8 +164,10 @@ def plotting (arr,
     ax3.plot([0,1000], [0,0], color='black', linestyle='dashed')  
     plt.fill_between(n_new, diff_rmse_smooth-diff_rmse_unc_smooth, diff_rmse_smooth+diff_rmse_unc_smooth,
                          color='red', alpha=0.3)
-    plt.savefig('./figs/'+name+'_rmse_diff.png', dpi=500, bbox_inches='tight')
+    plt.title("(c)", y=-0.35)
+    plt.savefig('./figs/'+name+'/'+name+'_rmse_diff.png', dpi=500, bbox_inches='tight')
     
+    # R2 diff
     fig, ax4 = plt.subplots()
     ax4.set_xlabel('Number of queries')
     ax4.set_ylabel('R$^2_{AL}$ - R$^2_{Rand}$')
@@ -143,9 +179,50 @@ def plotting (arr,
     #ax4.plot(n_new, np.zeros(300), color='black', linestyle='dashed')    
     plt.fill_between(n_new, diff_r2_smooth-diff_r2_unc_smooth, diff_r2_smooth+diff_r2_unc_smooth,
                          color='blue', alpha=0.3)
-    plt.savefig('./figs/'+name+'_r2_diff.png', dpi=500, bbox_inches='tight')
+    plt.title("(d)", y=-0.35)
+    plt.savefig('./figs/'+name+'/'+name+'_r2_diff.png', dpi=500, bbox_inches='tight')
+    
     
 
+#=============================================================================
+def tuning_visual (data_path, name, title, xlim, ylim, xticks, yticks):
+    plt.rcParams.update({'font.size': 18})
+    data = pd.read_csv(data_path)
+    alpha = data['alpha']
+    R2 = data['R2']
+    plt.figure()
+    plt.scatter(alpha, R2, s=75)
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+    plt.xticks(xticks)
+    plt.yticks(yticks)
+    plt.ylabel('R$^2_{AL}$')
+    plt.xlabel('$\\alpha$')
+    plt.title(title, y=-0.35)
+    p = Path('figs/tuning')
+    p.mkdir(parents=True, exist_ok=True)
+    plt.savefig('./figs/tuning/'+name+'.png', dpi=500, bbox_inches='tight')
+    
+def error_hist (data_path, name, xlim, ylim, xticks, yticks, title):
+    global data
+    data = pd.read_csv(data_path)
+    error = data['RPE']
+    p = Path('./figs/histogram')
+    p.mkdir(parents=True, exist_ok=True)
+    hist, bin_edges = np.histogram(error, bins='auto')
+    plt.rcParams.update({'font.size': 18})
+    plt.figure()
+    plt.hist(error, bins=len(hist), color = 'tab:red', edgecolor='black')
+    plt.ylabel('Frequency')
+    plt.xlabel('Relative Percent Error')
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+    plt.xticks(xticks)
+    plt.yticks(yticks)
+    plt.title(title, y=-0.35)
+    plt.savefig('./figs/histogram/'+name+'_error_distribution.png', dpi=500, bbox_inches='tight')
+    
+    
 #==============================================================================
 # Holdout 
 def hold_out_set (path, letter, fe):
@@ -159,7 +236,6 @@ def hold_out_set (path, letter, fe):
             test_list.append(df_arr[i])
         else:
             sample_list.append(df_arr[i])
-    global samples, tests
     samples = np.array(sample_list)
     samples = pd.DataFrame(samples,columns=cols)
     tests = np.array(test_list)
@@ -173,7 +249,7 @@ def hold_out_set (path, letter, fe):
 
 #==============================================================================
 # GPR training using Active Learning    
-def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case):
+def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case, alpha):
     '''
     Parameters
     ----------
@@ -203,7 +279,6 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
         obj = DRAL(path_X='./cases/PCA.csv')
         X = obj.PCA(var=0.95)
     
-    global X_sample, X_test, y_sample, y_test
     if (hold_out):
         X_sample, X_test, y_sample, y_test = hold_out_set(path, letter, fe)
         
@@ -234,14 +309,18 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
     # Defining Active learner
     # Defining kernel for Gaussian Process Regressor 
     kernel = DotProduct()
+    #kernel = RBF(length_scale=0.1)
+    #kernel = Matern(length_scale=1, length_scale_bounds=(1e-5,1e6))
+    #kernel = RationalQuadratic(length_scale_bounds=(1e-5,1e6))
+    #kernel = ExpSineSquared(length_scale = 0.01, length_scale_bounds=(1e-5,1e8))
     # Defining the active learner using modAL package 
     
     gpr = GaussianProcessRegressor(kernel=kernel,
                         random_state=0,
                         n_restarts_optimizer=0,
-                        alpha=1)
+                        alpha=alpha)
                      
-    # Start with n random samples
+    # Start with one random sample
     idx_in=np.random.choice(len(X_sample_scale), size=1, replace=False)
     X_ini = X_sample_scale[idx_in]
     y_ini = y_sample_scale[idx_in]
@@ -275,6 +354,7 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
             # Trained model Prediction on unseen data
             y_pred = regressor.predict(X_test_scale)
             y_pred = y_pred.reshape(-1,1)
+            global y_pred_kj
             y_pred_kj = scaler_y.inverse_transform(y_pred)
             rmse = np.sqrt(mean_squared_error(y_test, y_pred_kj))
             r2 = r2_score(y_test, y_pred_kj)
@@ -284,6 +364,17 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
     joblib.dump(regressor, "./trained_models/"+fe+str(n_samples)+".pkl")
     
     if(use_shap):
+        p = Path('cases/hist')
+        p.mkdir(parents=True, exist_ok=True)
+        train, test = train_test_split(df,  
+                                       test_size=0.32,
+                                       random_state=seed)
+        pacs = np.array(test[['letters', 'T', fe]])
+        rpe = (100*np.absolute(pacs[:,2]-y_pred_kj[:,0]))/pacs[:,2]
+        error = np.concatenate((pacs, y_pred_kj, rpe.reshape(-1,1)),  axis=1)
+        error_df = pd.DataFrame(error, columns=['PAC', 'T', 'True', 'Pred', 'RPE'])
+        error_df.to_csv('./cases/hist/hist_'+fe+'.csv', index=False)
+        
         X_train_summary = shap.kmeans(np.array(X_train), 10)
         explainer = shap.KernelExplainer(model = regressor.predict, data = X_train_summary)
         X_test_shap = pd.DataFrame(X_test_scale, columns=X.columns)
@@ -293,6 +384,8 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
         cols = np.array(X.columns)
         indices = avg_shap.argsort()
         top10 = indices[len(indices)-10:]
+        p = Path('./figs/shap')
+        p.mkdir(parents=True, exist_ok=True)
         plt.rcParams['font.size'] = 18
         f1 = plt.figure()
         ax1 = f1.add_subplot()
@@ -307,7 +400,9 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
         plt.xlabel('mean(|SHAP Values|)')
         for index, value in enumerate(avg_shap[top10]):
             plt.text(value, index-0.25, str("{:.4f}".format(value)))
-        plt.savefig('./figs/shap_bar_'+fe+'.png', dpi=500, bbox_inches='tight')
+        plt.title('(a)', y=-0.35)
+        plt.savefig('./figs/shap/shap_bar_'+fe+'.png', dpi=500, bbox_inches='tight')
+        
         f2 = plt.figure()
         ax2 = f2.add_subplot()
         shap.summary_plot(shap_obj, show=False, max_display=10)
@@ -318,7 +413,8 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
         elif(fe=='disassoc'):
             ax.set_xticks([-0.1, 0, 0.1])
         ax.set_xlabel("SHAP value (impact on model output)", fontsize=18)
-        plt.savefig('./figs/shap_swarm_'+fe+'.png', dpi=500, bbox_inches='tight')
+        plt.title('(b)', y=-0.25)
+        plt.savefig('./figs/shap/shap_swarm_'+fe+'.png', dpi=500, bbox_inches='tight')
     #=================================================================
     # GPR Training by Random sampling
     X_sample_r = X_sample_in.copy()
@@ -353,6 +449,50 @@ def FE_AL (path, n_samples, seed, pca, fe, use_shap, hold_out, letter, ref_case)
             k = k+1
     return np.array(metrics), np.array(metrics_rand)
 
+
+#=============================================================================
+def tuning (alpha, fe, seed):
+    np.random.seed(seed)
+    seed = np.random.randint(0, 40, 9)
+    seed = seed.tolist() 
+    seed.append(42)
+    metrics_AL = np.zeros((len(alpha), 3))
+    metrics_rand = np.zeros((len(alpha), 3))
+    for j in range (len(alpha)):
+        met_al = []
+        met_rand = []
+        for i in range(len(seed)):
+            metrics, metrics_rd = FE_AL(path='data_all.csv',
+                                        n_samples=100,
+                                        seed=seed[i],
+                                        pca=False,
+                                        fe=fe,
+                                        use_shap=False,
+                                        hold_out=False,
+                                        letter=None,
+                                        ref_case=False,
+                                        alpha=alpha[j])
+            met_al.append(metrics[-1, (1,2)])
+            met_rand.append(metrics_rd[-1, (1,2)])
+        met_al_arr = np.array(met_al)
+        met_rand_arr = np.array(met_rand)
+        al_mean = np.mean(met_al_arr, axis=0)
+        rand_mean = np.mean(met_rand_arr, axis=0)
+        print (j,'/',len(alpha))
+        print ('alpha =', alpha[j])
+        print ('R2 =', al_mean[1])
+        metrics_AL[j,0] = alpha[j]
+        metrics_AL[j,1:] = al_mean
+        metrics_rand[j,0] = alpha[j]
+        metrics_rand[j,1:] = rand_mean
+    p = Path('cases/tuning')
+    p.mkdir(parents=True, exist_ok=True)
+    df_al = pd.DataFrame(metrics_AL, columns=['alpha', 'RMSE kJ/mol', 'R2'])
+    df_al.to_csv('./cases/tuning/alpha_AL_'+fe+'.csv', index=False)
+    df_rand = pd.DataFrame(metrics_rand, columns=['n_samples', 'RMSE kJ/mol', 'R2'])
+    df_rand.to_csv('./cases/tuning/alpha_rand_'+fe+'.csv', index=False)
+    
+    
 #==============================================================================
 # GPR ensemble for active learning 
 def ENAL (df, n_samples, seed, pca, n_reg, fe):
@@ -451,7 +591,6 @@ def ENAL (df, n_samples, seed, pca, n_reg, fe):
 def fe_unc (fe):
     seed = np.arange(0,100,1)
     n_samples = np.arange(5,105,5)
-    global summary
     for k in range(len(fe)):
         summary = []
         for j in range(len(n_samples)):
@@ -459,14 +598,15 @@ def fe_unc (fe):
             lst_rand = []
             for i in range (0,len(seed)):
                 metrics, metrics_rd = FE_AL(path='data_all.csv',
-                                                          n_samples=n_samples[j],
-                                                          seed=seed[i],
-                                                          pca=False,
-                                                          fe=fe[k],
-                                                          use_shap=False,
-                                                          hold_out=False,
-                                                          letter=None,
-                                                          ref_case=False)
+                                            n_samples=n_samples[j],
+                                            seed=seed[i],
+                                            pca=False,
+                                            fe=fe[k],
+                                            use_shap=False,
+                                            hold_out=False,
+                                            letter=None,
+                                            ref_case=False,
+                                            alpha=1)
 
                 lst.append([i, metrics[-1,1], metrics[-1,2]])
                 lst_rand.append([i, metrics_rd[-1,1], metrics_rd[-1,2]])
@@ -499,7 +639,7 @@ def fe_unc (fe):
 
 #==============================================================================
 # Representer Theorem
-def rep_theory (fe, xlim):
+def rep_theory (fe, xlim, title):
     df = pd.read_csv('./cases/shap.csv')
     X =  df.drop(['letters','assoc','disassoc'], axis=1)
     y = df[fe]
@@ -521,6 +661,9 @@ def rep_theory (fe, xlim):
     y_pred_2 = []
     for i in range(len(X_test)):
         y_pred_2.append(w.dot(X_test[i,:].reshape(-1,1))[0][0])
+    
+    p = Path('./figs/rep_theory')
+    p.mkdir(parents=True, exist_ok=True)
     plt.figure()
     plt.rcParams.update({'font.size': 18})
     plt.plot(y_pred_2, y_pred)    
@@ -535,7 +678,77 @@ def rep_theory (fe, xlim):
     top10.plot.barh(legend=False, color='dodgerblue')
     plt.xlabel ('|w|')
     plt.xlim(xlim)
+    plt.title(title, y=-0.35)
     indices = np.array(top10.values).flatten()
     for index, value in enumerate(indices):
         plt.text(value, index-0.25, str("{:.4f}".format(value)))
-    plt.savefig('./figs/rep_theory_'+fe+'.png', dpi=500, bbox_inches='tight')
+    plt.savefig('./figs/rep_theory/rep_theory_'+fe+'.png', dpi=500, bbox_inches='tight')
+#==============================================================================
+# tSNE
+def tSNE (data_path, red_type, drop_Temp):
+    data = pd.read_csv(data_path)
+    letters = np.array(data['letters'])
+    if (drop_Temp):
+        X = data.drop(['letters', 'assoc', 'disassoc', 'T'], axis=1)
+    else:
+        X = data.drop(['letters', 'assoc', 'disassoc'], axis=1)
+    X_scaler = MinMaxScaler()
+    Xs = X_scaler.fit_transform(X)
+    
+    if (red_type=='tSNE'):
+        tsne = manifold.TSNE(n_components=2, init='pca', random_state=42, perplexity=30)
+        X_tsne = tsne.fit_transform(Xs)
+    elif (red_type=='pca'):
+        pca = PCA(n_components=2)
+        X_tsne = pca.fit_transform(Xs)
+    elif (red_type=='umap'):
+        r_umap = umap.UMAP(random_state=42)
+        X_tsne = r_umap.fit_transform(Xs)
+    
+    p = Path('./figs/tSNE')
+    p.mkdir(parents=True, exist_ok=True)
+    plt.figure()
+    plt.rcParams.update({'font.size': 18})
+    plt.scatter(X_tsne[:,0], X_tsne[:,1])
+    for i in range(len(X_tsne)):
+        if ('A' in letters[i]):
+            plt.scatter(X_tsne[i,0], X_tsne[i,1], color='orange', s=90)
+    
+        if ('C' in letters[i]):
+            plt.scatter(X_tsne[i,0], X_tsne[i,1], color='red', s=75)
+                
+        if ('P' in letters[i]):
+           plt.scatter(X_tsne[i,0], X_tsne[i,1], color='black', s=60)
+    
+        if ('K' in letters[i]):
+            plt.scatter(X_tsne[i,0], X_tsne[i,1], color='green', s=40)
+        if ('G' in letters[i]):
+            plt.scatter(X_tsne[i,0], X_tsne[i,1], color='yellow', s=30)
+
+    
+    a = np.where(letters=='AA')[0][0]  
+    plt.scatter(X_tsne[a,0], X_tsne[a,1], color='orange', s=75, label='A')        
+    a = np.where(letters=='CC')[0][0]
+    plt.scatter(X_tsne[a,0], X_tsne[a,1], color='red', s=60, label='C')
+    a = np.where(letters=='PP')[0][0]      
+    plt.scatter(X_tsne[a,0], X_tsne[a,1], color='black', s=40, label='I')
+    a = np.where(letters=='KK')[0][0]
+    plt.scatter(X_tsne[a,0], X_tsne[a,1], color='green', s=30, label='K')
+    a = np.where(letters=='GG')[0][0]
+    plt.scatter(X_tsne[a,0], X_tsne[a,1], s=30, color='tab:blue', label='Others')
+    plt.legend(fontsize=13)
+    if (red_type=='tSNE'):
+        plt.xlabel('t-SNE 1')
+        plt.ylabel('t-SNE 2')
+        plt.savefig('./figs/tSNE/tSNE_dissoc.png', dpi=500, bbox_inches='tight')
+    elif (red_type=='pca'):
+        plt.xlabel('PC 1')
+        plt.ylabel('PC 2')
+        plt.savefig('./figs/tSNE/pca_dissoc.png', dpi=500, bbox_inches='tight')
+    elif (red_type=='umap'):
+        plt.xlabel('U 1')
+        plt.ylabel('U 2')
+        plt.savefig('./figs/tSNE/umap_dissoc.png', dpi=500, bbox_inches='tight')
+    
+    
+

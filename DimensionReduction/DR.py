@@ -50,8 +50,7 @@ class DRAL():
         n_components = np.argmax(cumulative_variance_ratio >= var) + 1
         # Display the results
         print("Original Number of Features", n)
-        print("Reduced Number of Features:", n_dr)
-        print("Number of Components associated with the retained variance:", n_components)
+        print("Number of Components associated with the retained variance (95%):", n_components)
         # Plotting
         n_pca = np.linspace(1, n_dr, n_dr,dtype=int)
         fig,ax1 = plt.subplots()
