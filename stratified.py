@@ -89,10 +89,6 @@ class stratified ():
         # Defining Active learner
         # Defining kernel for Gaussian Process Regressor 
         kernel = DotProduct()
-        #kernel = RBF(length_scale=0.1)
-        #kernel = Matern(length_scale=1, length_scale_bounds=(1e-5,1e6))
-        #kernel = RationalQuadratic(length_scale_bounds=(1e-5,1e6))
-        #kernel = ExpSineSquared(length_scale = 0.01, length_scale_bounds=(1e-5,1e8))
         # Defining the active learner using modAL package 
         
         gpr = GaussianProcessRegressor(kernel=kernel,
