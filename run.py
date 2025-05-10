@@ -1,10 +1,11 @@
-from FEAL import FE_AL, plotting, ENAL, fe_unc, rep_theory
+from FEAL import FE_AL, plotting, ENAL, fe_unc, rep_theory, error_hist
 import numpy as np
              
 #========================================================
 # Testing model stability by running 100 case
 # The data is shuffled at the beggining of each run 
 # The run takes around 3 hours, the results are in ./cases/shuffle_assoc/diassoc.txt
+# uncomment the following line if you want to run 
 fe_unc(['assoc','disassoc'])
 
 # Plot the saved results
@@ -65,6 +66,23 @@ for i in range(len(n_reg)):
     R2.append(metrics[-1,2])
     RMSE.append(metrics[-1,1])
 
+#==============================================================
+# Plot Error Histogram
+error_hist(data_path='./cases/hist/hist_assoc.csv', 
+           name='assoc', 
+           xlim=[0,20], 
+           ylim=[0,30], 
+           xticks=np.arange(0,20,5), 
+           yticks=np.arange(0,40,10), 
+           title='(a)')
+
+error_hist(data_path='./cases/hist/hist_disassoc.csv', 
+           name='dissoc', 
+           xlim=[0,40], 
+           ylim=[0,25], 
+           xticks=np.arange(0,50,10), 
+           yticks=np.arange(0,30,5), 
+           title='(b)')
 
 #========================================================
 # Dropout from sampling space
